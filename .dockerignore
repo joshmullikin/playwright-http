@@ -1,0 +1,24 @@
+# Virtual environment
+.venv/
+
+# Git
+.git/
+.gitignore
+
+# Cache
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Environment files (use docker -e instead)
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Test files
+tests/
+
+# Documentation
+README.md
