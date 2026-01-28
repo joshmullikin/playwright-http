@@ -15,6 +15,34 @@ FROM cgr.dev/chainguard/python:latest-dev AS dev
 # Run as root during build for permissions
 USER root
 
+# Install system dependencies required by Playwright/Chromium
+# These are the Chainguard/Wolfi equivalents of the Debian packages
+RUN apk add --no-cache \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    font-liberation \
+    fontconfig \
+    libdrm \
+    mesa \
+    libxcomposite \
+    libxdamage \
+    libxrandr \
+    libxshmfence \
+    libxkbcommon \
+    alsa-lib \
+    at-spi2-core \
+    cups-libs \
+    libxfixes \
+    libxext \
+    pango \
+    cairo \
+    dbus-libs \
+    expat \
+    glib
+
 WORKDIR /app
 
 # Install uv for fast package management
@@ -29,11 +57,16 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
 # Install Python dependencies
 RUN /usr/local/bin/uv sync --frozen --no-dev
 
-# Install Playwright browser (chromium with dependencies)
-RUN /usr/local/bin/uv run playwright install --with-deps chromium
+# Install Playwright browser (without --with-deps since we installed deps above)
+RUN /usr/local/bin/uv run playwright install chromium
 
 # Copy application code
 COPY executor/ ./executor/
+
+# Stage system libraries for copying to prod (Docker COPY doesn't support wildcards well)
+RUN mkdir -p /staged-libs && \
+    cp -L /usr/lib/lib*.so* /staged-libs/ 2>/dev/null || true && \
+    cp -L /lib/lib*.so* /staged-libs/ 2>/dev/null || true
 
 # =============================================================================
 # Stage 2: Production - Distroless Python image
@@ -50,6 +83,16 @@ COPY --from=dev /app/browsers /app/browsers
 
 # Copy application code
 COPY --from=dev /app/executor /app/executor
+
+# Copy system libraries required by Chromium (staged in dev)
+COPY --from=dev /staged-libs /usr/lib/
+
+# Copy fonts
+COPY --from=dev /usr/share/fonts /usr/share/fonts
+COPY --from=dev /etc/fonts /etc/fonts
+
+# Copy CA certificates
+COPY --from=dev /etc/ssl/certs /etc/ssl/certs
 
 # Expose port
 EXPOSE 8932
