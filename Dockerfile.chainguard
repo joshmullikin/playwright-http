@@ -1,125 +1,36 @@
 # playwright-http Dockerfile for Chainguard images
 #
 # Multi-stage build:
-# 1. Dev stage: Install chromium, Python packages, and dependencies
-# 2. Prod stage: Distroless Python image with copied dependencies
+# 1. Dev stage: chainguard/python:latest-dev with playwright install
+# 2. Prod stage: chainguard/python:latest (distroless) with copied browser
 #
 # Build: docker build -f Dockerfile.chainguard -t playwright-http:chainguard .
 # Run:   docker run -p 8932:8932 -e AVAILABLE_BROWSERS=chromium-headless playwright-http:chainguard
 
 # =============================================================================
-# Stage 1: Development - Install all dependencies
+# Stage 1: Development - Install dependencies and Playwright browser
 # =============================================================================
-FROM cgr.dev/chainguard/wolfi-base AS dev
+FROM cgr.dev/chainguard/python:latest-dev AS dev
 
-# Install Python, chromium, and required libraries
-RUN apk add --no-cache \
-    python-3.13 \
-    py3.13-pip \
-    chromium \
-    font-liberation \
-    fontconfig \
-    freetype \
-    harfbuzz \
-    nss \
-    ca-certificates \
-    glibc
+WORKDIR /app
 
 # Install uv for fast package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
-
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install Python dependencies (skip Playwright browser download)
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# Set Playwright browser path to a known location for copying
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
+
+# Install Python dependencies
 RUN /usr/local/bin/uv sync --frozen --no-dev
+
+# Install Playwright browser (chromium with dependencies)
+RUN /usr/local/bin/uv run playwright install --with-deps chromium
 
 # Copy application code
 COPY executor/ ./executor/
-
-# Create directories for copying dependencies to prod stage
-RUN mkdir -p /chromium-deps/usr/lib /chromium-deps/usr/bin /chromium-deps/lib
-
-# Copy chromium binary
-RUN cp /usr/bin/chromium /chromium-deps/usr/bin/ 2>/dev/null || \
-    cp /usr/bin/chromium-browser /chromium-deps/usr/bin/chromium 2>/dev/null || true
-
-# Copy chromium libraries and dependencies
-RUN cp -r /usr/lib/chromium /chromium-deps/usr/lib/ 2>/dev/null || true && \
-    # Copy shared libraries that chromium depends on
-    for lib in \
-        libatk-1.0.so* \
-        libatk-bridge-2.0.so* \
-        libatspi.so* \
-        libcairo.so* \
-        libcups.so* \
-        libdbus-1.so* \
-        libdrm.so* \
-        libexpat.so* \
-        libfontconfig.so* \
-        libfreetype.so* \
-        libgbm.so* \
-        libgio-2.0.so* \
-        libglib-2.0.so* \
-        libgobject-2.0.so* \
-        libgtk-3.so* \
-        libgdk-3.so* \
-        libharfbuzz.so* \
-        libjpeg.so* \
-        libnspr4.so* \
-        libnss3.so* \
-        libnssutil3.so* \
-        libpango-1.0.so* \
-        libpangocairo-1.0.so* \
-        libpng*.so* \
-        libsmime3.so* \
-        libX11.so* \
-        libXcomposite.so* \
-        libXdamage.so* \
-        libXext.so* \
-        libXfixes.so* \
-        libXrandr.so* \
-        libxcb.so* \
-        libxkbcommon.so* \
-        libxshmfence.so* \
-        libffi.so* \
-        libz.so* \
-        libbz2.so* \
-        liblzma.so* \
-        libm.so* \
-        libpthread.so* \
-        libdl.so* \
-        librt.so* \
-    ; do \
-        cp -L /usr/lib/$lib /chromium-deps/usr/lib/ 2>/dev/null || true; \
-    done && \
-    # Copy from /lib as well
-    for lib in \
-        libz.so* \
-        libc.so* \
-        libm.so* \
-        libpthread.so* \
-        libdl.so* \
-        librt.so* \
-        ld-linux*.so* \
-    ; do \
-        cp -L /lib/$lib /chromium-deps/lib/ 2>/dev/null || true; \
-    done
-
-# Copy fonts
-RUN mkdir -p /chromium-deps/usr/share/fonts && \
-    cp -r /usr/share/fonts/* /chromium-deps/usr/share/fonts/ 2>/dev/null || true
-
-# Copy fontconfig
-RUN mkdir -p /chromium-deps/etc/fonts && \
-    cp -r /etc/fonts/* /chromium-deps/etc/fonts/ 2>/dev/null || true
-
-# Copy CA certificates
-RUN mkdir -p /chromium-deps/etc/ssl/certs && \
-    cp -r /etc/ssl/certs/* /chromium-deps/etc/ssl/certs/ 2>/dev/null || true
 
 # =============================================================================
 # Stage 2: Production - Distroless Python image
@@ -128,16 +39,13 @@ FROM cgr.dev/chainguard/python:latest
 
 WORKDIR /app
 
-# Copy chromium and system dependencies from dev stage
-COPY --from=dev /chromium-deps/usr/bin/chromium /usr/bin/chromium
-COPY --from=dev /chromium-deps/usr/lib /usr/lib
-COPY --from=dev /chromium-deps/lib /lib
-COPY --from=dev /chromium-deps/usr/share/fonts /usr/share/fonts
-COPY --from=dev /chromium-deps/etc/fonts /etc/fonts
-COPY --from=dev /chromium-deps/etc/ssl/certs /etc/ssl/certs
-
-# Copy Python virtual environment and application from dev stage
+# Copy Python virtual environment from dev stage
 COPY --from=dev /app/.venv /app/.venv
+
+# Copy Playwright browsers from dev stage
+COPY --from=dev /app/browsers /app/browsers
+
+# Copy application code
 COPY --from=dev /app/executor /app/executor
 
 # Expose port
@@ -146,15 +54,13 @@ EXPOSE 8932
 # Environment variables
 ENV AVAILABLE_BROWSERS=chromium-headless
 ENV BROWSER_TIMEOUT=30000
-# Point Playwright to system-installed chromium
-ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+# Point Playwright to copied browsers
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
 # Use the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/app/.venv"
-# Skip browser download (we use system chromium)
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 # Ignore SSL errors if needed for enterprise proxies
 # ENV BROWSER_IGNORE_SSL_ERRORS=true
 
-# Run the server using the venv's Python
+# Run the server
 ENTRYPOINT ["/app/.venv/bin/python", "-m", "uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
