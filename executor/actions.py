@@ -143,6 +143,9 @@ async def execute_click(page: Page, step: dict, base_url: str) -> dict[str, Any]
 async def execute_type(page: Page, step: dict, base_url: str) -> dict[str, Any]:
     """Type text into an input element.
 
+    Uses human-like typing for password fields to avoid bot detection.
+    Other fields use fill() for speed.
+
     Args:
         page: Playwright Page instance
         step: Step dict with "target" and "value"
@@ -165,7 +168,25 @@ async def execute_type(page: Page, step: dict, base_url: str) -> dict[str, Any]:
         if not element:
             return {"status": "failed", "error": f"Element not found: {target}"}
 
-        await element.fill(value, timeout=5000)
+        # Check if this is a password field (by target name or input type)
+        is_password_field = "password" in target.lower()
+        if not is_password_field:
+            try:
+                input_type = await element.get_attribute("type")
+                is_password_field = input_type == "password"
+            except Exception:
+                pass
+
+        if is_password_field:
+            # Use human-like typing for password fields to avoid bot detection
+            # Clear field first, then type with small delays
+            await element.click()
+            await element.fill("")  # Clear existing content
+            await element.type(value, delay=50)  # 50ms between keystrokes
+        else:
+            # Use fill() for non-sensitive fields (faster)
+            await element.fill(value, timeout=5000)
+
         return {"status": "passed"}
     except Exception as e:
         return {"status": "failed", "error": f"Type failed: {str(e)}"}

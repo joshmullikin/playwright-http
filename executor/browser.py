@@ -68,6 +68,50 @@ Object.defineProperty(navigator, 'hardwareConcurrency', {{
     configurable: true
 }});
 
+// Mask deviceMemory (headless may have unusual values)
+Object.defineProperty(navigator, 'deviceMemory', {{
+    get: () => 8,
+    configurable: true
+}});
+
+// Mask connection type (headless often missing)
+if (navigator.connection) {{
+    Object.defineProperty(navigator.connection, 'effectiveType', {{
+        get: () => '4g',
+        configurable: true
+    }});
+}}
+
+// Mask WebGL vendor/renderer (headless has different values)
+const getParameterProxyHandler = {{
+    apply: function(target, thisArg, args) {{
+        const param = args[0];
+        const gl = thisArg;
+        // UNMASKED_VENDOR_WEBGL
+        if (param === 37445) {{
+            return 'Google Inc. (NVIDIA)';
+        }}
+        // UNMASKED_RENDERER_WEBGL
+        if (param === 37446) {{
+            return 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+        }}
+        return Reflect.apply(target, thisArg, args);
+    }}
+}};
+
+// Apply WebGL masking
+const canvas = document.createElement('canvas');
+const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+if (gl) {{
+    const originalGetParameter = gl.getParameter.bind(gl);
+    gl.getParameter = new Proxy(originalGetParameter, getParameterProxyHandler);
+}}
+const gl2 = canvas.getContext('webgl2');
+if (gl2) {{
+    const originalGetParameter2 = gl2.getParameter.bind(gl2);
+    gl2.getParameter = new Proxy(originalGetParameter2, getParameterProxyHandler);
+}}
+
 // Console debug message
 console.debug('Stealth script loaded (platform: {platform})');
 """
@@ -329,17 +373,18 @@ class BrowserManager:
             context_options["user_agent"] = user_agent
         elif is_headless:
             # Use a realistic Chrome user-agent matching the actual platform
+            # Keep Chrome version current (update periodically)
             if is_linux:
                 context_options["user_agent"] = (
                     "Mozilla/5.0 (X11; Linux x86_64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
+                    "Chrome/131.0.0.0 Safari/537.36"
                 )
             else:
                 context_options["user_agent"] = (
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
+                    "Chrome/131.0.0.0 Safari/537.36"
                 )
 
         context = await browser.new_context(**context_options)
