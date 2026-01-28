@@ -62,9 +62,12 @@ RUN /usr/local/bin/uv run playwright install chromium
 COPY executor/ ./executor/
 
 # Stage system libraries for copying to prod (Docker COPY doesn't support wildcards well)
-RUN mkdir -p /staged-libs && \
+RUN mkdir -p /staged-libs /staged-fonts /staged-fontconfig /staged-certs && \
     cp -L /usr/lib/lib*.so* /staged-libs/ 2>/dev/null || true && \
-    cp -L /lib/lib*.so* /staged-libs/ 2>/dev/null || true
+    cp -L /lib/lib*.so* /staged-libs/ 2>/dev/null || true && \
+    cp -r /usr/share/fonts/* /staged-fonts/ 2>/dev/null || true && \
+    cp -r /etc/fonts/* /staged-fontconfig/ 2>/dev/null || true && \
+    cp -r /etc/ssl/certs/* /staged-certs/ 2>/dev/null || true
 
 # =============================================================================
 # Stage 2: Production - Distroless Python image
@@ -85,12 +88,12 @@ COPY --from=dev /app/executor /app/executor
 # Copy system libraries required by Chromium (staged in dev)
 COPY --from=dev /staged-libs /usr/lib/
 
-# Copy fonts
-COPY --from=dev /usr/share/fonts /usr/share/fonts
-COPY --from=dev /etc/fonts /etc/fonts
+# Copy fonts (may be empty if font packages not available)
+COPY --from=dev /staged-fonts /usr/share/fonts
+COPY --from=dev /staged-fontconfig /etc/fonts
 
 # Copy CA certificates
-COPY --from=dev /etc/ssl/certs /etc/ssl/certs
+COPY --from=dev /staged-certs /etc/ssl/certs
 
 # Expose port
 EXPOSE 8932
