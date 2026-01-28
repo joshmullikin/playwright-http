@@ -12,6 +12,9 @@
 # =============================================================================
 FROM cgr.dev/chainguard/python:latest-dev AS dev
 
+# Run as root during build for permissions
+USER root
+
 WORKDIR /app
 
 # Install uv for fast package management
