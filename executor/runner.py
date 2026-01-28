@@ -77,6 +77,9 @@ async def execute_test(
             target = step.get("target")
             value = step.get("value")
 
+            # Debug: print step being executed (REMOVE AFTER DEBUGGING)
+            print(f"[runner] Executing step {step_num}: action={action}, target={target}, value={value}")
+
             # Emit step started
             await event_callback({
                 "type": "step_started",
