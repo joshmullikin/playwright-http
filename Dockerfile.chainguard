@@ -17,8 +17,9 @@ USER root
 
 # Install system dependencies required by Playwright/Chromium
 # These are the Chainguard/Wolfi equivalents of the Debian packages
+# Install system dependencies required by Playwright/Chromium
+# Note: nss should include nspr as dependency
 RUN apk add --no-cache \
-    nspr \
     nss \
     freetype \
     harfbuzz \
@@ -43,7 +44,9 @@ RUN apk add --no-cache \
     glib \
     libx11 \
     libxcb \
-    libgcc
+    libgcc \
+    && ls -la /usr/lib/libnspr* || echo "nspr libs not found in /usr/lib" \
+    && ls -la /lib/libnspr* || echo "nspr libs not found in /lib"
 
 WORKDIR /app
 
