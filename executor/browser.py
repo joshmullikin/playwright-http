@@ -16,60 +16,74 @@ logger = logging.getLogger(__name__)
 
 # Stealth script to mask automation detection in headless mode
 # This helps bypass basic bot detection on sites like ADP
-STEALTH_SCRIPT = """
+# Note: Platform-specific values are injected at runtime via STEALTH_SCRIPT_TEMPLATE
+STEALTH_SCRIPT_TEMPLATE = """
 // Mask navigator.webdriver
-Object.defineProperty(navigator, 'webdriver', {
+Object.defineProperty(navigator, 'webdriver', {{
     get: () => undefined,
     configurable: true
-});
+}});
 
 // Mask chrome.runtime for older detection methods
-if (!window.chrome) {
-    window.chrome = {};
-}
-if (!window.chrome.runtime) {
-    window.chrome.runtime = {};
-}
+if (!window.chrome) {{
+    window.chrome = {{}};
+}}
+if (!window.chrome.runtime) {{
+    window.chrome.runtime = {{}};
+}}
 
 // Mask permissions query
 const originalQuery = window.navigator.permissions.query;
 window.navigator.permissions.query = (parameters) => (
     parameters.name === 'notifications' ?
-        Promise.resolve({ state: Notification.permission }) :
+        Promise.resolve({{ state: Notification.permission }}) :
         originalQuery(parameters)
 );
 
 // Mask plugins (headless has 0 plugins)
-Object.defineProperty(navigator, 'plugins', {
+Object.defineProperty(navigator, 'plugins', {{
     get: () => [
-        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
-        { name: 'Native Client', filename: 'internal-nacl-plugin' },
+        {{ name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' }},
+        {{ name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' }},
+        {{ name: 'Native Client', filename: 'internal-nacl-plugin' }},
     ],
     configurable: true
-});
+}});
 
 // Mask languages
-Object.defineProperty(navigator, 'languages', {
+Object.defineProperty(navigator, 'languages', {{
     get: () => ['en-US', 'en'],
     configurable: true
-});
+}});
 
-// Mask platform to be consistent
-Object.defineProperty(navigator, 'platform', {
-    get: () => 'MacIntel',
+// Mask platform to match user-agent (injected at runtime)
+Object.defineProperty(navigator, 'platform', {{
+    get: () => '{platform}',
     configurable: true
-});
+}});
 
 // Mask hardware concurrency (headless often has different value)
-Object.defineProperty(navigator, 'hardwareConcurrency', {
+Object.defineProperty(navigator, 'hardwareConcurrency', {{
     get: () => 8,
     configurable: true
-});
+}});
 
 // Console debug message
-console.debug('Stealth script loaded');
+console.debug('Stealth script loaded (platform: {platform})');
 """
+
+
+def get_stealth_script(is_linux: bool = False) -> str:
+    """Get stealth script with platform-appropriate values.
+
+    Args:
+        is_linux: True if running on Linux (e.g., containers)
+
+    Returns:
+        JavaScript stealth script with correct platform
+    """
+    platform = "Linux x86_64" if is_linux else "MacIntel"
+    return STEALTH_SCRIPT_TEMPLATE.format(platform=platform)
 
 
 # Browser display names for UI
@@ -306,23 +320,34 @@ class BrowserManager:
             "viewport": viewport or {"width": 1280, "height": 720},
         }
 
+        # Detect if running on Linux (containers, CI, etc.)
+        import platform
+        is_linux = platform.system() == "Linux"
+
         # For headless mode, use a realistic user-agent to avoid detection
         if user_agent:
             context_options["user_agent"] = user_agent
         elif is_headless:
-            # Use a realistic Chrome user-agent (remove HeadlessChrome identifier)
-            context_options["user_agent"] = (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            )
+            # Use a realistic Chrome user-agent matching the actual platform
+            if is_linux:
+                context_options["user_agent"] = (
+                    "Mozilla/5.0 (X11; Linux x86_64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            else:
+                context_options["user_agent"] = (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
 
         context = await browser.new_context(**context_options)
         context.set_default_timeout(self._timeout)
 
         # Add stealth script to mask automation detection
         if is_headless:
-            await context.add_init_script(STEALTH_SCRIPT)
+            await context.add_init_script(get_stealth_script(is_linux=is_linux))
 
         try:
             yield context
