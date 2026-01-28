@@ -18,6 +18,7 @@ USER root
 # Install system dependencies required by Playwright/Chromium
 # These are the Chainguard/Wolfi equivalents of the Debian packages
 RUN apk add --no-cache \
+    nspr \
     nss \
     freetype \
     harfbuzz \
@@ -39,7 +40,10 @@ RUN apk add --no-cache \
     cairo \
     dbus-libs \
     expat \
-    glib
+    glib \
+    libx11 \
+    libxcb \
+    libgcc
 
 WORKDIR /app
 
@@ -106,6 +110,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
 # Use the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/app/.venv"
+# Ensure shared libraries can be found
+ENV LD_LIBRARY_PATH="/usr/lib:/lib"
 # Ignore SSL errors if needed for enterprise proxies
 # ENV BROWSER_IGNORE_SSL_ERRORS=true
 
