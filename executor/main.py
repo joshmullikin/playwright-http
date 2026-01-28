@@ -159,11 +159,6 @@ async def execute_endpoint(request: Request) -> StreamingResponse:
     # Parse request body
     body = await request.json()
 
-    # Debug: print received steps (REMOVE AFTER DEBUGGING)
-    print(f"[playwright-http] Received {len(body.get('steps', []))} steps")
-    for i, step in enumerate(body.get("steps", [])):
-        print(f"[playwright-http] Step {i+1}: action={step.get('action')}, target={step.get('target')}, value={step.get('value')}")
-
     # Convert to dict for runner
     test_request = {
         "test_id": body.get("test_id"),
