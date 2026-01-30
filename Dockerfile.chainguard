@@ -1,80 +1,55 @@
 # playwright-http Dockerfile for Chainguard images
 #
-# Multi-stage build:
-# 1. Dev stage: chainguard/python:latest-dev with playwright install
-# 2. Prod stage: chainguard/python:latest (distroless) with copied browser
+# Uses system Chromium via apk (brings all dependencies automatically)
+# Note: Firefox not supported - requires Playwright's patched build which needs apt
 #
 # Build: docker build -f Dockerfile.chainguard -t playwright-http:chainguard .
-# Run:   docker run -p 8932:8932 -e AVAILABLE_BROWSERS=chromium-headless playwright-http:chainguard
+# Run:   docker run -p 8932:8932 playwright-http:chainguard
 
 # =============================================================================
-# Stage 1: Development - Install dependencies and Playwright browser
+# Stage 1: Development - Install Chromium and Python dependencies
 # =============================================================================
 FROM cgr.dev/chainguard/python:latest-dev AS dev
 
-# Run as root during build for permissions
 USER root
 
-# Install system dependencies required by Playwright/Chromium
-# These are the Chainguard/Wolfi equivalents of the Debian packages
-# Install system dependencies required by Playwright/Chromium
-# Note: nss should include nspr as dependency
 RUN apk add --no-cache \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    fontconfig \
-    libdrm \
-    mesa \
-    libxcomposite \
-    libxdamage \
-    libxrandr \
-    libxshmfence \
-    libxkbcommon \
-    alsa-lib \
-    at-spi2-core \
-    cups-libs \
-    libxfixes \
-    libxext \
-    pango \
-    cairo \
-    dbus-libs \
-    expat \
-    glib \
-    libx11 \
-    libxcb \
-    libgcc \
-    && ls -la /usr/lib/libnspr* || echo "nspr libs not found in /usr/lib" \
-    && ls -la /lib/libnspr* || echo "nspr libs not found in /lib"
+    chromium=133.0.6943.141-r1 \
+    glibc-dev=2.40-r3 \
+    pulseaudio=17.0-r2 \
+    alsa-lib=1.2.12-r2 \
+    font-noto=2025.02.01-r0 \
+    font-noto-cjk=0.0_git20220127-r1 \
+    font-noto-emoji=2.051-r0 \
+    ttf-dejavu=2.37-r4 && \
+    rm -rf /var/cache/apk/* /tmp/*
 
-WORKDIR /app
+USER nonroot
 
-# Install uv for fast package management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Stage Chromium files for copying to prod
+WORKDIR /chromium-deps
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Set Playwright browser path to a known location for copying
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
+RUN mkdir -p /chromium-deps/usr/lib /chromium-deps/usr/bin /chromium-deps/lib /chromium-deps/usr/share && \
+    # Copy entire chromium directory (includes .pak files, snapshots, crashpad, etc.)
+    cp -r /usr/lib/chromium /chromium-deps/usr/lib/ && \
+    { cp -r /usr/lib/pulseaudio /chromium-deps/usr/lib/ 2>/dev/null || true; } && \
+    # Copy chromium binaries and create symlinks
+    cp /usr/bin/chromium* /chromium-deps/usr/bin/ && \
+    { ln -sf /usr/lib/chromium/chrome /chromium-deps/usr/bin/chrome 2>/dev/null || true; } && \
+    { ln -sf /usr/lib/chromium/chrome_crashpad_handler /chromium-deps/usr/bin/chrome_crashpad_handler 2>/dev/null || true; } && \
+    # Copy fonts
+    { cp -r /usr/share/fonts /chromium-deps/usr/share/ 2>/dev/null || true; } && \
+    { cp -r /usr/share/fontconfig /chromium-deps/usr/share/ 2>/dev/null || true; } && \
+    # Copy shared libraries
+    { find /usr/lib -maxdepth 1 -name "*.so*" -exec cp -L {} /chromium-deps/usr/lib/ \; 2>/dev/null || true; } && \
+    { find /lib -maxdepth 1 -name "*.so*" -exec cp -L {} /chromium-deps/lib/ \; 2>/dev/null || true; }
 
 # Install Python dependencies
-RUN /usr/local/bin/uv sync --frozen --no-dev
+WORKDIR /app
 
-# Install Playwright browser (without --with-deps since we installed deps above)
-RUN /usr/local/bin/uv run playwright install chromium
+COPY pyproject.toml uv.lock ./
 
-# Copy application code
-COPY executor/ ./executor/
-
-# Stage system libraries for copying to prod (Docker COPY doesn't support wildcards well)
-RUN mkdir -p /staged-libs /staged-fonts /staged-fontconfig /staged-certs && \
-    cp -L /usr/lib/lib*.so* /staged-libs/ 2>/dev/null || true && \
-    cp -L /lib/lib*.so* /staged-libs/ 2>/dev/null || true && \
-    cp -r /usr/share/fonts/* /staged-fonts/ 2>/dev/null || true && \
-    cp -r /etc/fonts/* /staged-fontconfig/ 2>/dev/null || true && \
-    cp -r /etc/ssl/certs/* /staged-certs/ 2>/dev/null || true
+RUN uv sync --frozen --no-dev
 
 # =============================================================================
 # Stage 2: Production - Distroless Python image
@@ -83,24 +58,15 @@ FROM cgr.dev/chainguard/python:latest
 
 WORKDIR /app
 
-# Copy Python virtual environment from dev stage
+# Copy application code
+COPY . /app
+
+# Copy Python virtual environment
 COPY --from=dev /app/.venv /app/.venv
 
-# Copy Playwright browsers from dev stage
-COPY --from=dev /app/browsers /app/browsers
-
-# Copy application code
-COPY --from=dev /app/executor /app/executor
-
-# Copy system libraries required by Chromium (staged in dev)
-COPY --from=dev /staged-libs /usr/lib/
-
-# Copy fonts (may be empty if font packages not available)
-COPY --from=dev /staged-fonts /usr/share/fonts
-COPY --from=dev /staged-fontconfig /etc/fonts
-
-# Copy CA certificates
-COPY --from=dev /staged-certs /etc/ssl/certs
+# Copy Chromium and system libraries
+COPY --from=dev /chromium-deps/usr /usr
+COPY --from=dev /chromium-deps/lib /lib
 
 # Expose port
 EXPOSE 8932
@@ -108,15 +74,10 @@ EXPOSE 8932
 # Environment variables
 ENV AVAILABLE_BROWSERS=chromium-headless
 ENV BROWSER_TIMEOUT=30000
-# Point Playwright to copied browsers
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/browsers
-# Use the virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
-ENV VIRTUAL_ENV="/app/.venv"
-# Ensure shared libraries can be found
-ENV LD_LIBRARY_PATH="/usr/lib:/lib"
-# Ignore SSL errors if needed for enterprise proxies
-# ENV BROWSER_IGNORE_SSL_ERRORS=true
+ENV BROWSER_IGNORE_SSL_ERRORS=true
+ENV LD_LIBRARY_PATH=/usr/lib/chromium:/usr/lib:/lib
+# Point to the actual chrome binary, not the wrapper
+ENV CHROMIUM_EXECUTABLE_PATH=/usr/lib/chromium/chrome
 
 # Run the server
-ENTRYPOINT ["/app/.venv/bin/python", "-m", "uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
+CMD [".venv/bin/uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
