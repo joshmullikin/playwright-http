@@ -4,7 +4,6 @@ Executes test steps and streams results via callback for SSE streaming.
 """
 
 import base64
-import logging
 import time
 import uuid
 from typing import Any, Callable, Awaitable
@@ -13,8 +12,9 @@ from playwright.async_api import Page
 
 from .actions import execute_action
 from .browser import BrowserManager
+from .logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Type alias for event callback
 EventCallback = Callable[[dict[str, Any]], Awaitable[None]]

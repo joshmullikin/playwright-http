@@ -4,14 +4,15 @@ Manages multiple browser instances that are reused across requests.
 Each test gets a fresh browser context for isolation.
 """
 
-import logging
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 
-logger = logging.getLogger(__name__)
+from .logging import get_logger
+
+logger = get_logger(__name__)
 
 
 # Stealth script to mask automation detection in headless mode

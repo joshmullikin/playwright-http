@@ -5,7 +5,8 @@ Provides REST API for browser automation test execution.
 
 import asyncio
 import json
-import logging
+import time
+import uuid
 import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -21,13 +22,11 @@ from pydantic import BaseModel
 
 from .browser import get_browser_manager, get_browser_info, startup_browser, shutdown_browser
 from .runner import execute_test
+from .logging import setup_logging, get_logger, request_id_var
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -57,6 +56,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with request ID for correlation."""
+    # Use X-Request-ID from upstream (checkmate) or generate new one
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id_var.set(request_id)
+
+    start = time.perf_counter()
+    logger.info(f"{request.method} {request.url.path}")
+
+    response = await call_next(request)
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(f"{response.status_code} ({duration_ms:.1f}ms)")
+
+    # Return request ID in response header
+    response.headers["X-Request-ID"] = request_id
+
+    return response
 
 
 # Request/Response models

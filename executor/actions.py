@@ -11,6 +11,7 @@ from typing import Any
 
 from playwright.async_api import Page, expect
 
+from .logging import get_logger
 from .element_finder import (
     find_element,
     find_input_element,
@@ -607,8 +608,7 @@ async def execute_wait_for_page(page: Page, step: dict, base_url: str) -> dict[s
     Returns:
         Result dict with status
     """
-    import logging
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     load_state = step.get("value", "load").lower().strip()
 
