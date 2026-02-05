@@ -44,6 +44,7 @@ DEFAULT_RETRIES_BY_ACTION = {
     "assert_text": 0,
     "assert_element": 0,
     "assert_style": 0,
+    "assert_url": 0,
     # Utility - no retry needed
     "screenshot": 0,
     "evaluate": 0,

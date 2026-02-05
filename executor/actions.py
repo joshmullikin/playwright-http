@@ -387,6 +387,42 @@ async def execute_assert_style(page: Page, step: dict, base_url: str) -> dict[st
         return {"status": "failed", "error": f"Style assertion failed: {str(e)}"}
 
 
+async def execute_assert_url(page: Page, step: dict, base_url: str) -> dict[str, Any]:
+    """Assert that current URL matches a regex pattern.
+
+    Args:
+        page: Playwright Page instance
+        step: Step dict with "value" containing regex pattern
+        base_url: Base URL (unused but included for consistency)
+
+    Returns:
+        Result dict with status
+    """
+    pattern = step.get("value", "")
+
+    if not pattern:
+        return {"status": "failed", "error": "No regex pattern provided for assert_url action"}
+
+    try:
+        current_url = page.url
+        regex = re.compile(pattern)
+        
+        if regex.search(current_url):
+            return {"status": "passed"}
+        else:
+            return {
+                "status": "failed",
+                "error": f"URL mismatch. Current: {current_url}, Expected pattern: {pattern}"
+            }
+    except re.error as e:
+        hint = ""
+        if "*" in pattern and ".*" not in pattern:
+            hint = " Hint: Use '.*' for wildcard matching in regex, not '*'."
+        return {"status": "failed", "error": f"Invalid regex pattern: {pattern}. Error: {str(e)}.{hint}"}
+    except Exception as e:
+        return {"status": "failed", "error": f"URL assertion failed: {str(e)}"}
+
+
 async def execute_press_key(page: Page, step: dict, base_url: str) -> dict[str, Any]:
     """Press a keyboard key.
 
@@ -653,6 +689,7 @@ ACTION_HANDLERS = {
     "assert_text": execute_assert_text,
     "assert_element": execute_assert_element,
     "assert_style": execute_assert_style,
+    "assert_url": execute_assert_url,
     "press_key": execute_press_key,
     "screenshot": execute_screenshot,
     "back": execute_back,

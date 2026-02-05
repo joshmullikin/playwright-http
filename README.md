@@ -83,7 +83,7 @@ The `/execute` endpoint streams Server-Sent Events:
 
 ## Supported Actions
 
-17 browser actions. See [UTML spec](UTML.md#actions-reference) for full details.
+18 browser actions. See [UTML spec](UTML.md#actions-reference) for full details.
 
 | Action | Description | Target | Value |
 |--------|-------------|--------|-------|
@@ -97,6 +97,7 @@ The `/execute` endpoint streams Server-Sent Events:
 | `assert_text` | Assert text visible | - | Expected text |
 | `assert_element` | Assert element visible | Element description | - |
 | `assert_style` | Assert CSS style | Element description | JSON: {property, expected} |
+| `assert_url` | Assert URL matches regex | - | Regex pattern |
 | `press_key` | Press keyboard key | - | Key name (Enter, Tab) |
 | `screenshot` | Take screenshot | Element (opt) | Filename (opt) |
 | `back` | Navigate back | - | - |

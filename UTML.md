@@ -72,7 +72,7 @@ Each step in the `steps` array is an object:
 
 ## Actions Reference
 
-UTML supports 17 browser actions:
+UTML supports 18 browser actions:
 
 ### Navigation
 
@@ -108,6 +108,7 @@ UTML supports 17 browser actions:
 | `assert_text` | Verify text is visible | - | Expected text |
 | `assert_element` | Verify element exists | Element description | - |
 | `assert_style` | Verify CSS property | Element description | JSON: `{"property": "color", "expected": "red"}` |
+| `assert_url` | Verify URL matches regex | - | Regex pattern |
 
 ### Utility
 
