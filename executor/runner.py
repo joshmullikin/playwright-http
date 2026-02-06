@@ -45,6 +45,9 @@ DEFAULT_RETRIES_BY_ACTION = {
     "assert_element": 0,
     "assert_style": 0,
     "assert_url": 0,
+    # State management - DO NOT retry (technical operations)
+    "capture_state": 0,
+    "restore_state": 0,
     # Utility - no retry needed
     "screenshot": 0,
     "evaluate": 0,
@@ -215,6 +218,7 @@ async def execute_test(
                             "screenshot": screenshot_b64,
                             "attempt": attempt + 1,
                             "max_attempts": max_retries + 1,
+                            "result": result.get("result"),  # Pass result field from action (e.g., capture_state)
                         })
                         step_passed = True
                         break
@@ -292,6 +296,7 @@ async def execute_test(
                     "screenshot": last_screenshot_b64,
                     "attempt": max_retries + 1,
                     "max_attempts": max_retries + 1,
+                    "result": None,  # No result on failure
                 })
                 failed += 1
                 final_status = "failed"

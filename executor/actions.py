@@ -677,6 +677,104 @@ async def execute_wait_for_page(page: Page, step: dict, base_url: str) -> dict[s
         return {"status": "failed", "error": f"Timeout waiting for page {state}: {str(e)}"}
 
 
+async def execute_capture_state(page: Page, step: dict, base_url: str) -> dict[str, Any]:
+    """Capture current browser state (cookies + storage) for fixture caching.
+
+    Args:
+        page: Playwright Page instance
+        step: Step dict (no target or value needed)
+        base_url: Base URL (unused)
+
+    Returns:
+        Result dict with status and state data in result field
+    """
+    try:
+        context = page.context
+        
+        # Get Playwright storage_state (cookies + origins with localStorage/sessionStorage)
+        state = await context.storage_state()
+        
+        # Return state in result field for checkmate to cache
+        return {
+            "status": "passed",
+            "result": {
+                "url": page.url,
+                "state": state
+            }
+        }
+    except Exception as e:
+        return {"status": "failed", "error": f"Failed to capture state: {str(e)}"}
+
+
+async def execute_restore_state(page: Page, step: dict, base_url: str) -> dict[str, Any]:
+    """Restore browser state from cached fixture data.
+
+    Args:
+        page: Playwright Page instance
+        step: Step dict with "value" containing state JSON and "target" containing URL
+        base_url: Base URL for relative URL resolution
+
+    Returns:
+        Result dict with status
+    """
+    import json
+    
+    try:
+        # Get state from value
+        value = step.get("value", "")
+        if not value:
+            return {"status": "failed", "error": "No state data provided for restore_state"}
+        
+        # Parse state JSON
+        try:
+            state_data = json.loads(value) if isinstance(value, str) else value
+        except json.JSONDecodeError as e:
+            return {"status": "failed", "error": f"Invalid state JSON: {str(e)}"}
+        
+        state = state_data.get("state")
+        url = state_data.get("url") or step.get("target")
+        
+        if not state:
+            return {"status": "failed", "error": "No state object found in value"}
+        
+        if not url:
+            return {"status": "failed", "error": "No URL provided for restore_state"}
+        
+        # Add cookies and storage to context
+        context = page.context
+        await context.add_cookies(state.get("cookies", []))
+        
+        # Navigate to the cached URL to restore the browser to that page
+        await page.goto(url, wait_until="load", timeout=30000)
+        
+        # Set localStorage and sessionStorage for each origin
+        origins = state.get("origins", [])
+        for origin_data in origins:
+            origin = origin_data.get("origin")
+            local_storage = origin_data.get("localStorage", [])
+            session_storage = origin_data.get("sessionStorage", [])
+            
+            if local_storage:
+                # Execute JavaScript to set localStorage items (use evaluate with args to avoid injection)
+                for item in local_storage:
+                    await page.evaluate(
+                        "([key, value]) => window.localStorage.setItem(key, value)",
+                        [item['name'], item['value']]
+                    )
+            
+            if session_storage:
+                # Execute JavaScript to set sessionStorage items
+                for item in session_storage:
+                    await page.evaluate(
+                        "([key, value]) => window.sessionStorage.setItem(key, value)",
+                        [item['name'], item['value']]
+                    )
+        
+        return {"status": "passed"}
+    except Exception as e:
+        return {"status": "failed", "error": f"Failed to restore state: {str(e)}"}
+
+
 # Action dispatcher mapping
 ACTION_HANDLERS = {
     "navigate": execute_navigate,
@@ -690,6 +788,8 @@ ACTION_HANDLERS = {
     "assert_element": execute_assert_element,
     "assert_style": execute_assert_style,
     "assert_url": execute_assert_url,
+    "capture_state": execute_capture_state,
+    "restore_state": execute_restore_state,
     "press_key": execute_press_key,
     "screenshot": execute_screenshot,
     "back": execute_back,

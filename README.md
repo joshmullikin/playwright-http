@@ -83,7 +83,7 @@ The `/execute` endpoint streams Server-Sent Events:
 
 ## Supported Actions
 
-18 browser actions. See [UTML spec](UTML.md#actions-reference) for full details.
+20 browser actions. See [UTML spec](UTML.md#actions-reference) for full details.
 
 | Action | Description | Target | Value |
 |--------|-------------|--------|-------|
@@ -105,6 +105,8 @@ The `/execute` endpoint streams Server-Sent Events:
 | `upload` | Upload file(s) | Input (opt) | File path(s) |
 | `drag` | Drag to element | Source element | Destination element |
 | `evaluate` | Run JavaScript | - | JS code |
+| `capture_state` | Capture browser state | - | - |
+| `restore_state` | Restore browser state | URL (opt) | JSON: {url, state} |
 
 ## Element Finding
 

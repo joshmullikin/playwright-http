@@ -72,7 +72,7 @@ Each step in the `steps` array is an object:
 
 ## Actions Reference
 
-UTML supports 18 browser actions:
+UTML supports 20 browser actions:
 
 ### Navigation
 
@@ -109,6 +109,15 @@ UTML supports 18 browser actions:
 | `assert_element` | Verify element exists | Element description | - |
 | `assert_style` | Verify CSS property | Element description | JSON: `{"property": "color", "expected": "red"}` |
 | `assert_url` | Verify URL matches regex | - | Regex pattern |
+
+### State Management
+
+| Action | Description | Target | Value |
+|--------|-------------|--------|-------|
+| `capture_state` | Capture browser state (cookies + storage) | - | - |
+| `restore_state` | Restore browser state | URL (optional) | JSON: `{"url": "...", "state": {...}}` |
+
+> **Note:** State management actions are typically injected automatically by test orchestrators for fixture caching and are not intended for manual use in test definitions.
 
 ### Utility
 
