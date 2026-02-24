@@ -89,12 +89,19 @@ class TestStep(BaseModel):
     description: str | None = None
 
 
+class ViewportSize(BaseModel):
+    """Browser viewport dimensions."""
+    width: int = 1280
+    height: int = 720
+
+
 class TestOptions(BaseModel):
     """Test execution options."""
 
     browser: str | None = None  # Browser ID (e.g., "chrome", "chromium-headless")
     timeout: int = 30000
     screenshot_on_failure: bool = True
+    viewport: ViewportSize | None = None  # Browser viewport size
 
 
 class ExecuteRequest(BaseModel):
@@ -127,6 +134,29 @@ class BrowsersResponse(BaseModel):
 
     browsers: list[BrowserInfo]
     default: str
+
+
+class ConfigUpdate(BaseModel):
+    """Update executor runtime configuration."""
+    preload: bool
+
+
+@app.get("/config")
+async def get_executor_config() -> dict:
+    """Get executor configuration (preload flag + per-browser running status)."""
+    return get_browser_manager().get_config()
+
+
+@app.post("/config")
+async def update_executor_config(update: ConfigUpdate) -> dict:
+    """Update executor configuration at runtime.
+
+    Setting preload=true immediately starts any browsers not yet running.
+    Setting preload=false only updates the flag; running browsers stay open.
+    To make permanent, set BROWSER_PRELOAD=false in your .env file.
+    """
+    await get_browser_manager().set_preload(update.preload)
+    return get_browser_manager().get_config()
 
 
 @app.get("/health", response_model=HealthResponse)
