@@ -47,6 +47,10 @@ class RecordingSession:
     on_event: Callable[[dict], Awaitable[None]] | None = None
     _stopped: bool = False
     events: list[dict] = field(default_factory=list)
+    # URLs that were the source of a redirect response (3xx).
+    # When framenavigated fires for one of these URLs we know it's an
+    # intermediate hop, not the final destination, and skip emitting it.
+    _redirect_urls: set[str] = field(default_factory=set)
 
 
 # ── Global session store ─────────────────────────────────────────────────────
@@ -127,6 +131,9 @@ async def start_recording(
     # Listen for recorder events sent via console.debug
     page.on("console", lambda msg: _handle_console(session, msg))
 
+    # Track redirect responses so we can skip intermediate hops in framenavigated
+    page.on("response", lambda resp: _handle_response(session, resp))
+
     # Capture top-level navigation events that the JS script can't detect
     page.on("framenavigated", lambda frame: _handle_navigation(session, frame))
 
@@ -160,12 +167,59 @@ def _handle_console(session: RecordingSession, msg) -> None:
         logger.warning(f"[{session.session_id}] Malformed recorder event")
 
 
+def _handle_response(session: RecordingSession, response) -> None:
+    """Track redirect responses so framenavigated can skip intermediate hops.
+
+    Tracks both the request URL (which returned the 3xx) and the Location
+    header target (where the browser will navigate next). This handles cases
+    where framenavigated reports the Location URL rather than the request URL.
+    """
+    if session._stopped:
+        return
+    # Check the response's frame — for cross-origin redirects, the frame
+    # reference may change, so also accept responses where the request URL
+    # matches the current page URL (same navigation chain).
+    try:
+        if response.frame != session.page.main_frame:
+            return
+    except Exception:
+        # Frame may have been detached during redirect chain
+        pass
+    status = response.status
+    if 300 <= status < 400:
+        session._redirect_urls.add(response.url)
+        # Also track the Location target — framenavigated may fire with this URL
+        location = response.headers.get("location", "")
+        if location:
+            session._redirect_urls.add(location)
+        logger.debug(
+            f"[{session.session_id}] Redirect {status}: {response.url} → {location}"
+        )
+
+
 def _handle_navigation(session: RecordingSession, frame) -> None:
-    """Emit a navigate event when the main frame URL changes."""
+    """Emit a navigate event when the main frame URL changes.
+
+    Skips intermediate redirect hops (302, 307, etc.) by checking whether
+    the navigated URL was previously seen as a redirect response.  Only
+    the final destination URL is emitted synchronously — no debounce
+    delay, so event ordering is always preserved.
+    """
     if session._stopped:
         return
     if frame != session.page.main_frame:
         return
+
+    url = frame.url
+
+    # If this URL triggered a redirect response, it's an intermediate hop — skip it
+    if url in session._redirect_urls:
+        session._redirect_urls.discard(url)
+        logger.debug(
+            f"[{session.session_id}] Skipping redirect hop: {url}"
+        )
+        return
+
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -180,8 +234,8 @@ def _handle_navigation(session: RecordingSession, frame) -> None:
         "selector": "",
         "tag": "",
         "text": "",
-        "value": frame.url,
-        "url": frame.url,
+        "value": url,
+        "url": url,
     }
     session.events.append(event)
     if session.on_event:
