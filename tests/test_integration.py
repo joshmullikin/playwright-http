@@ -155,7 +155,7 @@ async def browser_manager(monkeypatch):
 
 
 @pytest.fixture
-def base_url(http_server_url):
+def test_base_url(http_server_url):
     """Base URL for test server."""
     return http_server_url
 
@@ -185,7 +185,7 @@ async def collect_events(execute_test_coro):
 class TestElementFindingIntegration:
     """Tests for real element finding and interaction on live HTML."""
 
-    async def test_navigate_and_find_text(self, browser_manager, base_url):
+    async def test_navigate_and_find_text(self, browser_manager, test_base_url):
         """Navigate to page and verify text is visible."""
         events = []
 
@@ -196,7 +196,7 @@ class TestElementFindingIntegration:
             browser_manager,
             {
                 "test_id": "nav-test",
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "assert_text", "value": "Welcome Page"},
@@ -208,7 +208,7 @@ class TestElementFindingIntegration:
         assert result["status"] == "passed"
         assert result["passed"] == 2
 
-    async def test_click_button_and_detect_change(self, browser_manager, base_url):
+    async def test_click_button_and_detect_change(self, browser_manager, test_base_url):
         """Click a button and verify page changes."""
         events = []
 
@@ -218,7 +218,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "click", "target": "Login"},
@@ -232,7 +232,7 @@ class TestElementFindingIntegration:
         assert result["status"] == "passed"
         assert result["passed"] == 4
 
-    async def test_form_fill_and_submit(self, browser_manager, base_url):
+    async def test_form_fill_and_submit(self, browser_manager, test_base_url):
         """Fill form fields and submit."""
         events = []
 
@@ -242,7 +242,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "type", "target": "Username", "value": "alice"},
@@ -258,7 +258,7 @@ class TestElementFindingIntegration:
         assert result["status"] == "passed"
         assert result["passed"] == 6
 
-    async def test_element_not_found_fails(self, browser_manager, base_url):
+    async def test_element_not_found_fails(self, browser_manager, test_base_url):
         """Verify that looking for non-existent element fails."""
         events = []
 
@@ -268,7 +268,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "click", "target": "NonexistentButton"},
@@ -282,7 +282,7 @@ class TestElementFindingIntegration:
         assert result["failed"] == 1
         assert result["skipped"] == 0
 
-    async def test_assert_element_visibility(self, browser_manager, base_url):
+    async def test_assert_element_visibility(self, browser_manager, test_base_url):
         """Assert that an element is visible."""
         events = []
 
@@ -292,7 +292,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "assert_element", "target": "Welcome Page"},
@@ -303,7 +303,7 @@ class TestElementFindingIntegration:
 
         assert result["status"] == "passed"
 
-    async def test_wait_for_element(self, browser_manager, base_url):
+    async def test_wait_for_element(self, browser_manager, test_base_url):
         """Wait for element to appear."""
         events = []
 
@@ -313,7 +313,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "wait", "target": "Login"},
@@ -324,7 +324,7 @@ class TestElementFindingIntegration:
 
         assert result["status"] == "passed"
 
-    async def test_css_selector_click(self, browser_manager, base_url):
+    async def test_css_selector_click(self, browser_manager, test_base_url):
         """Click using CSS selector instead of natural language."""
         events = []
 
@@ -334,7 +334,7 @@ class TestElementFindingIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "click", "target": "#login-btn"},
@@ -358,7 +358,7 @@ class TestElementFindingIntegration:
 class TestAssertionsIntegration:
     """Tests for various assertion types on real pages."""
 
-    async def test_assert_url_matches_pattern(self, browser_manager, base_url):
+    async def test_assert_url_matches_pattern(self, browser_manager, test_base_url):
         """Assert current URL matches a regex pattern."""
         events = []
 
@@ -368,7 +368,7 @@ class TestAssertionsIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "assert_url", "value": "/$|/index"},
@@ -379,7 +379,7 @@ class TestAssertionsIntegration:
 
         assert result["status"] == "passed"
 
-    async def test_assert_text_not_on_page_fails(self, browser_manager, base_url):
+    async def test_assert_text_not_on_page_fails(self, browser_manager, test_base_url):
         """Verify that asserting for non-existent text fails."""
         events = []
 
@@ -389,7 +389,7 @@ class TestAssertionsIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "assert_text", "value": "NonexistentText12345"},
@@ -401,7 +401,7 @@ class TestAssertionsIntegration:
         assert result["status"] == "failed"
         assert result["failed"] == 1
 
-    async def test_evaluate_javascript(self, browser_manager, base_url):
+    async def test_evaluate_javascript(self, browser_manager, test_base_url):
         """Execute custom JavaScript and verify result."""
         events = []
 
@@ -411,7 +411,7 @@ class TestAssertionsIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {
@@ -444,7 +444,7 @@ class TestAssertionsIntegration:
 class TestStateManagementIntegration:
     """Tests for capturing and restoring page state."""
 
-    async def test_capture_and_restore_state(self, browser_manager, base_url):
+    async def test_capture_and_restore_state(self, browser_manager, test_base_url):
         """Test that capture_state action works without errors."""
         events = []
 
@@ -455,11 +455,11 @@ class TestStateManagementIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "capture_state"},  # Should capture and store state
-                    {"action": "assert_url", "value": base_url},  # Verify still on correct page
+                    {"action": "assert_url", "value": test_base_url},  # Verify still on correct page
                 ],
             },
             callback,
@@ -480,7 +480,7 @@ class TestStateManagementIntegration:
 class TestRetryIntegration:
     """Tests for retry behavior in action execution."""
 
-    async def test_action_succeeds_on_retry(self, browser_manager, base_url):
+    async def test_action_succeeds_on_retry(self, browser_manager, test_base_url):
         """Verify that actions can retry and succeed."""
         events = []
 
@@ -491,7 +491,7 @@ class TestRetryIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "click", "target": "Login"},
@@ -514,7 +514,7 @@ class TestRetryIntegration:
 class TestEndToEndWorkflows:
     """Tests for complete user workflows."""
 
-    async def test_complete_login_workflow(self, browser_manager, base_url):
+    async def test_complete_login_workflow(self, browser_manager, test_base_url):
         """Complete workflow: navigate, fill form, submit, verify result."""
         events = []
 
@@ -524,7 +524,7 @@ class TestEndToEndWorkflows:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/", "description": "Navigate to login page"},
                     {
@@ -570,7 +570,7 @@ class TestEndToEndWorkflows:
         assert event_types[-1] == "completed"
         assert "step_completed" in event_types
 
-    async def test_workflow_with_screenshot_on_failure(self, browser_manager, base_url):
+    async def test_workflow_with_screenshot_on_failure(self, browser_manager, test_base_url):
         """Verify screenshot is captured when step fails."""
         events = []
 
@@ -580,7 +580,7 @@ class TestEndToEndWorkflows:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "click", "target": "NonexistentButton"},
@@ -609,7 +609,7 @@ class TestEndToEndWorkflows:
 class TestMultipleBrowsers:
     """Tests with different browser types if available."""
 
-    async def test_chromium_browser(self, browser_manager, base_url):
+    async def test_chromium_browser(self, browser_manager, test_base_url):
         """Test with chromium browser."""
         events = []
 
@@ -619,7 +619,7 @@ class TestMultipleBrowsers:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/"},
                     {"action": "assert_text", "value": "Welcome Page"},
@@ -641,7 +641,7 @@ class TestMultipleBrowsers:
 class TestClickRecoveryIntegration:
     """Tests for click recovery tiers using real browser DOM behavior."""
 
-    async def test_css_autoheal_click_by_fuzzy_data_testid(self, browser_manager, base_url):
+    async def test_css_autoheal_click_by_fuzzy_data_testid(self, browser_manager, test_base_url):
         """Tier 2b: fuzzy CSS selector should recover from stale numeric suffix."""
         events = []
 
@@ -651,7 +651,7 @@ class TestClickRecoveryIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/recovery"},
                     {
@@ -671,7 +671,7 @@ class TestClickRecoveryIntegration:
         click_event = next(e for e in events if e.get("type") == "step_completed" and e.get("action") == "click")
         assert click_event.get("status") == "passed"
 
-    async def test_hover_submenu_click_reveals_hidden_target(self, browser_manager, base_url):
+    async def test_hover_submenu_click_reveals_hidden_target(self, browser_manager, test_base_url):
         """Tier 4: hover submenu fallback reveals hidden link and clicks it."""
         events = []
 
@@ -681,7 +681,7 @@ class TestClickRecoveryIntegration:
         result = await execute_test(
             browser_manager,
             {
-                "base_url": base_url,
+                "base_url": test_base_url,
                 "steps": [
                     {"action": "navigate", "value": "/recovery"},
                     {"action": "click", "target": "Export CSV"},
