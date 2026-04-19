@@ -63,6 +63,8 @@ jobs:
   test:
     name: Test and Build
     runs-on: ubuntu-latest
+    env:
+      AVAILABLE_BROWSERS: chromium-headless
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,6 +79,9 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen --dev
+
+      - name: Install Chromium
+        run: uv run playwright install chromium --with-deps
 
       - name: Run tests
         run: uv run pytest -q
