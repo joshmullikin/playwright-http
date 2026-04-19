@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast package management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir uv
 
 # Copy dependency files first for caching
 COPY pyproject.toml uv.lock ./
