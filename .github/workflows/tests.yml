@@ -1,0 +1,71 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest \
+            tests/test_element_finder.py \
+            tests/test_element_finder_async.py \
+            tests/test_actions.py \
+            tests/test_runner.py \
+            tests/test_browser_pure.py \
+            tests/test_main_endpoints.py \
+            tests/test_recorder.py \
+            --cov=executor \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            -q
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-unit
+          path: coverage.xml
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      AVAILABLE_BROWSERS: chromium-headless
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Install Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Run integration tests
+        run: |
+          pytest tests/test_integration.py \
+            -v \
+            --tb=short \
+            -q
