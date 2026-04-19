@@ -14,14 +14,14 @@ FROM cgr.dev/chainguard/python:latest-dev AS dev
 USER root
 
 RUN apk add --no-cache \
-    chromium=133.0.6943.141-r1 \
-    glibc-dev=2.40-r3 \
-    pulseaudio=17.0-r2 \
-    alsa-lib=1.2.12-r2 \
-    font-noto=2025.02.01-r0 \
-    font-noto-cjk=0.0_git20220127-r1 \
-    font-noto-emoji=2.051-r0 \
-    ttf-dejavu=2.37-r4 && \
+    chromium \
+    glibc-dev \
+    pulseaudio \
+    alsa-lib \
+    font-noto \
+    font-noto-cjk \
+    font-noto-emoji \
+    ttf-dejavu && \
     rm -rf /var/cache/apk/* /tmp/*
 
 USER nonroot
