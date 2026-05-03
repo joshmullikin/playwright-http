@@ -33,7 +33,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.1.0
 
       - name: Install dependencies
         run: uv sync --frozen --dev
@@ -75,7 +75,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.1.0
 
       - name: Install dependencies
         run: uv sync --frozen --dev
@@ -149,25 +149,34 @@ jobs:
           push: false
           tags: local/playwright-http-smoke:${{ github.sha }}
 
-      - name: Run container and wait for health endpoint
+      - name: Run container and wait for Docker health
         shell: bash
         run: |
-          docker run -d --name playwright-http-smoke -p 8932:8932 local/playwright-http-smoke:${{ github.sha }}
+          docker run -d --name playwright-http-smoke local/playwright-http-smoke:${{ github.sha }}
           for i in {1..60}; do
-            status="$(docker inspect --format='{{.State.Status}}' playwright-http-smoke 2>/dev/null || echo missing)"
-            if [ "$status" != "running" ]; then
-              echo "Smoke test failed: container status is '$status'"
+            container_status="$(docker inspect --format='{{.State.Status}}' playwright-http-smoke 2>/dev/null || echo missing)"
+            health_status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' playwright-http-smoke 2>/dev/null || echo missing)"
+            if [ "$container_status" != "running" ]; then
+              echo "Smoke test failed: container status is '$container_status'"
+              docker inspect --format='{{json .State}}' playwright-http-smoke || true
               docker logs playwright-http-smoke || true
               exit 1
             fi
-            if curl -fsS http://127.0.0.1:8932/health >/dev/null; then
+            if [ "$health_status" = "healthy" ]; then
               echo "Smoke test passed"
               exit 0
             fi
+            if [ "$health_status" = "unhealthy" ]; then
+              echo "Smoke test failed: health status is '$health_status'"
+              docker inspect --format='{{json .State.Health}}' playwright-http-smoke || true
+              docker logs playwright-http-smoke || true
+              exit 1
+            fi
             sleep 2
           done
-          echo "Smoke test failed: health endpoint did not become ready"
+          echo "Smoke test failed: container did not become healthy"
           docker ps -a --filter name=playwright-http-smoke
+          docker inspect --format='{{json .State.Health}}' playwright-http-smoke || true
           docker logs playwright-http-smoke
           exit 1
 
@@ -193,8 +202,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set image name
+        id: image_name
         shell: bash
-        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        run: echo "value=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -210,7 +220,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ steps.image_name.outputs.value }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
