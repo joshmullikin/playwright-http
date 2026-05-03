@@ -49,7 +49,7 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --link-mode=copy
 
 # =============================================================================
 # Stage 2: Production - Distroless Python image
@@ -79,5 +79,8 @@ ENV LD_LIBRARY_PATH=/usr/lib/chromium:/usr/lib:/lib
 # Point to the actual chrome binary, not the wrapper
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/lib/chromium/chrome
 
-# Run the server
-CMD [".venv/bin/uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
+# Override the Chainguard python image default entrypoint so we control the runtime
+ENTRYPOINT []
+
+# Run the server with the virtual environment interpreter
+CMD ["/app/.venv/bin/python", "-m", "uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
