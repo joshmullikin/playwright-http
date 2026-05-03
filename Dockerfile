@@ -28,10 +28,6 @@ FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
-# Install curl (health check) and Playwright's chromium system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy venv and browser cache from builder — uv is not needed at runtime
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
@@ -52,6 +48,6 @@ ENV AVAILABLE_BROWSERS=chromium-headless
 ENV BROWSER_TIMEOUT=30000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8932/health || exit 1
+    CMD ["/app/.venv/bin/python", "-c", "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:8932/health', timeout=5).read(); sys.exit(0)"]
 
 CMD ["uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]

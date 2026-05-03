@@ -79,6 +79,9 @@ ENV LD_LIBRARY_PATH=/usr/lib/chromium:/usr/lib:/lib
 # Point to the actual chrome binary, not the wrapper
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/lib/chromium/chrome
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/app/.venv/bin/python", "-c", "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:8932/health', timeout=5).read(); sys.exit(0)"]
+
 # Override the Chainguard python image default entrypoint so we control the runtime
 ENTRYPOINT []
 
