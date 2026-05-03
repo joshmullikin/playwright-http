@@ -2,44 +2,56 @@
 # Build: docker build -t playwright-http .
 # Run:   docker run -p 8932:8932 -e AVAILABLE_BROWSERS=chromium-headless playwright-http
 
+# ── Stage 1: build venv and download browser binaries ────────────────────────
+FROM python:3.13-slim-bookworm AS builder
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Download browser binary only; system deps are handled in the final stage
+RUN playwright install chromium
+
+# Uncomment to pre-download additional browsers:
+# RUN playwright install chrome
+# RUN playwright install firefox
+# RUN playwright install webkit
+
+# ── Stage 2: lean runtime image ───────────────────────────────────────────────
 FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
-# Install curl for health check
+# Install curl (health check) and Playwright's chromium system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast package management
-RUN pip install --no-cache-dir uv
+# Copy venv and browser cache from builder — uv is not needed at runtime
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
-# Copy dependency files first for caching
-COPY pyproject.toml uv.lock ./
+# Activate the venv
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Install Python dependencies (excluding dev deps)
-RUN uv sync --frozen --no-dev
-
-# Install Playwright browser with system dependencies
-RUN uv run playwright install --with-deps chromium
-
-# Uncomment to install additional browsers:
-# RUN uv run playwright install --with-deps chrome
-# RUN uv run playwright install --with-deps firefox
-# RUN uv run playwright install --with-deps webkit
+# Install only the OS-level packages that chromium requires (no browser re-download)
+RUN playwright install-deps chromium
 
 # Copy application code
 COPY executor/ ./executor/
 
-# Expose port
 EXPOSE 8932
 
-# Default environment variables
 ENV AVAILABLE_BROWSERS=chromium-headless
 ENV BROWSER_TIMEOUT=30000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8932/health || exit 1
 
-# Run the server
-CMD ["uv", "run", "uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
+CMD ["uvicorn", "executor.main:app", "--host", "0.0.0.0", "--port", "8932"]
