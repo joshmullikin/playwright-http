@@ -156,6 +156,17 @@ Default: `AVAILABLE_BROWSERS=chromium-headless`. To add more browsers, uncomment
 | Session management | You handle it | Buggy | Automatic |
 | Stealth mode | Paid feature | No | Built-in |
 
+## Dependency and Security Automation
+
+This repository uses scheduled bots and workflows to keep dependencies and security checks current.
+
+- Dependabot updates Python dependencies daily at 06:00 UTC.
+- Dependabot updates GitHub Actions weekly on Monday at 07:00 UTC.
+- Dependabot updates Docker dependencies weekly on Monday at 08:00 UTC.
+- A scheduled security workflow runs weekly on Monday at 06:30 UTC and can also be run manually.
+
+The scheduled security workflow exports production requirements, runs `pip-audit`, runs OSV scanning against `uv.lock`, and uploads SARIF results to GitHub code scanning.
+
 ## License
 
 MIT
