@@ -126,6 +126,49 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
 
+  docker_smoke:
+    name: Docker Smoke Test
+    runs-on: ubuntu-latest
+    needs:
+      - security
+      - test
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.chainguard
+          load: true
+          push: false
+          tags: local/playwright-http-smoke:${{ github.sha }}
+
+      - name: Run container and wait for health endpoint
+        shell: bash
+        run: |
+          docker run -d --name playwright-http-smoke -p 8932:8932 local/playwright-http-smoke:${{ github.sha }}
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8932/health >/dev/null; then
+              echo "Smoke test passed"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Smoke test failed: health endpoint did not become ready"
+          docker logs playwright-http-smoke
+          exit 1
+
+      - name: Cleanup smoke test container
+        if: always()
+        shell: bash
+        run: docker rm -f playwright-http-smoke || true
+
   publish:
     name: Publish Docker Image
     runs-on: ubuntu-latest
@@ -133,6 +176,7 @@ jobs:
       - security
       - test
       - docker_security
+      - docker_smoke
     if: github.event_name == 'push'
     permissions:
       contents: read
